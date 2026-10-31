@@ -16,6 +16,10 @@ class User:
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
+class DuplicateEmailError(RuntimeError):
+    """Raised by a repository when the unique email constraint is violated."""
+
+
 @runtime_checkable
 class UserRepository(Protocol):
     """Storage contract implemented by the SQLAlchemy repository."""

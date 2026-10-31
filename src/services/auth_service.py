@@ -12,7 +12,7 @@ from src.core.security import (
     hash_password,
     verify_password,
 )
-from src.repositories.user_repository import User, UserRepository
+from src.repositories.user_repository import DuplicateEmailError, User, UserRepository
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
 MIN_PASSWORD_LENGTH = 8
@@ -79,7 +79,14 @@ class AuthService:
             raise EmailAlreadyRegisteredError(msg)
 
         hashed_password = await asyncio.to_thread(hash_password, password)
-        return await self._users.create(email=normalized_email, hashed_password=hashed_password)
+        try:
+            return await self._users.create(
+                email=normalized_email,
+                hashed_password=hashed_password,
+            )
+        except DuplicateEmailError as exc:
+            msg = f"Email already registered: {normalized_email}"
+            raise EmailAlreadyRegisteredError(msg) from exc
 
     async def authenticate(self, email: str, password: str) -> User:
         """Return the user if the credentials are valid."""
