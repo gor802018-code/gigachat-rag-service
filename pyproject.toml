@@ -52,6 +52,10 @@ extend-exclude = ["data", ".venv"]
 select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "ASYNC", "RUF"]
 ignore = [
     "B008",
+    # Cyrillic letters that look like Latin ones are expected in a Russian-language project.
+    "RUF001",
+    "RUF002",
+    "RUF003",
 ]
 
 [tool.ruff.lint.isort]
