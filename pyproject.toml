@@ -19,6 +19,7 @@ dependencies = [
     "alembic>=1.14",
     "python-jose[cryptography]>=3.3",
     "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.0,<4.1",  # passlib 1.7.4 is incompatible with bcrypt>=4.1 (backend self-test)
     "langchain>=0.3",
     "langchain-core>=0.3",
     "langchain-community>=0.3",
