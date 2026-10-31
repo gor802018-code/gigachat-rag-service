@@ -39,9 +39,13 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=60, gt=0, le=24 * 60)
 
     llm_provider: LLMProvider = "gigachat"
+    llm_model: str | None = None
+    llm_base_url: str | None = None
+    llm_api_key: SecretStr | None = None
     gigachat_credentials: SecretStr | None = None
     gigachat_scope: str = "GIGACHAT_API_PERS"
     gigachat_model: str = "GigaChat"
+    gigachat_verify_ssl_certs: bool = False
     llm_temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     llm_timeout_seconds: int = Field(default=60, gt=0)
 
@@ -70,6 +74,18 @@ class Settings(BaseSettings):
     @property
     def is_testing(self) -> bool:
         return self.app_env == "test"
+
+    @property
+    def active_llm_model(self) -> str:
+        """Model name for the configured provider (``LLM_MODEL`` wins)."""
+        if self.llm_model:
+            return self.llm_model
+        defaults = {
+            "gigachat": self.gigachat_model,
+            "openai": "gpt-4o-mini",
+            "deepseek": "deepseek-chat",
+        }
+        return defaults[self.llm_provider]
 
     @property
     def upload_limit_bytes(self) -> int:
