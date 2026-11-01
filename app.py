@@ -242,9 +242,11 @@ def _render_chat() -> None:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             for source in message.get("sources", []):
+                page = source.get("page")
+                page_part = f", стр. {page}" if page is not None else ""
                 st.caption(
-                    f"Источник: {source.get('file_name', '—')}, "
-                    f"фрагмент {source.get('chunk_index', '?')}, "
+                    f"Источник: {source.get('file_name', '—')}"
+                    f"{page_part}, фрагмент {source.get('chunk_index', '?')}, "
                     f"score {source.get('score', 0):.2f}"
                 )
 

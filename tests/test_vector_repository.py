@@ -149,3 +149,62 @@ def test_reset_removes_everything(repository: VectorRepository) -> None:
     assert not repository.index_file.exists()
     assert not repository.records_file.exists()
     assert repository.search("кошка") == []
+
+
+def test_search_is_scoped_to_user(tmp_path: Path) -> None:
+    repository = VectorRepository(KeywordEmbedder(), tmp_path / "index")
+    repository.add_documents(
+        [Document(page_content="Кошки спят", metadata={"chunk_index": 0})],
+        document_id="alice-doc",
+        user_id="alice",
+    )
+    repository.add_documents(
+        [Document(page_content="Кошки едят", metadata={"chunk_index": 0})],
+        document_id="bob-doc",
+        user_id="bob",
+    )
+
+    alice_hits = repository.search("кошки", user_id="alice")
+    bob_hits = repository.search("кошки", user_id="bob")
+
+    assert [hit.metadata["chunk_id"] for hit in alice_hits] == ["alice-doc:0"]
+    assert [hit.metadata["chunk_id"] for hit in bob_hits] == ["bob-doc:0"]
+    assert {hit.metadata["chunk_id"] for hit in repository.search("кошки")} == {
+        "alice-doc:0",
+        "bob-doc:0",
+    }
+
+
+def test_user_filter_does_not_lose_own_chunks_behind_others(tmp_path: Path) -> None:
+    repository = VectorRepository(KeywordEmbedder(), tmp_path / "index")
+    noise = [
+        Document(page_content="кошки шумят", metadata={"chunk_index": index}) for index in range(10)
+    ]
+    repository.add_documents(noise, document_id="bob", user_id="bob")
+    repository.add_documents(
+        [Document(page_content="кошки спят", metadata={"chunk_index": 0})],
+        document_id="alice",
+        user_id="alice",
+    )
+
+    hits = repository.search("кошки", top_k=1, user_id="alice")
+
+    assert [hit.metadata["chunk_id"] for hit in hits] == ["alice:0"]
+
+
+def test_records_without_owner_are_invisible_to_users(tmp_path: Path) -> None:
+    index_path = tmp_path / "index"
+    repository = VectorRepository(KeywordEmbedder(), index_path)
+    repository.add_documents(
+        [Document(page_content="Кошки спят", metadata={})],
+        document_id="legacy",
+    )
+    records = json.loads(repository.records_file.read_text(encoding="utf-8"))
+    for record in records:
+        record.pop("user_id", None)
+    repository.records_file.write_text(json.dumps(records), encoding="utf-8")
+
+    reloaded = VectorRepository(KeywordEmbedder(), index_path)
+
+    assert reloaded.search("кошки", user_id="alice") == []
+    assert len(reloaded.search("кошки")) == 1

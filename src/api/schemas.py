@@ -64,6 +64,7 @@ class SourceResponse(BaseModel):
     chunk_index: int | None = None
     chunk_id: str | None = None
     score: float
+    page: int | None = None
 
 
 class AnswerResponse(BaseModel):
@@ -82,6 +83,7 @@ class AnswerResponse(BaseModel):
                     chunk_index=source.chunk_index,
                     chunk_id=source.chunk_id,
                     score=source.score,
+                    page=source.page,
                 )
                 for source in answer.sources
             ],

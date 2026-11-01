@@ -34,6 +34,7 @@ class SourceRef:
     chunk_index: int | None
     chunk_id: str | None
     score: float
+    page: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,8 +89,10 @@ class RAGService:
         self,
         file_path: str | Path,
         document_id: str | None = None,
+        *,
+        user_id: str,
     ) -> IngestResult:
-        """Load, split and index a document. Blocking work runs in a thread."""
+        """Load, split and index a document owned by ``user_id``."""
         path = Path(file_path)
         documents = await asyncio.to_thread(self._loader.load, path)
         chunks = await asyncio.to_thread(self._splitter.split, documents)
@@ -102,17 +105,29 @@ class RAGService:
             self._vectors.add_documents,
             chunks,
             document_id=resolved_id,
+            user_id=user_id,
         )
         return IngestResult(document_id=resolved_id, file_name=path.name, chunks=len(chunks))
 
-    async def ask(self, question: str, top_k: int | None = None) -> RAGAnswer:
-        """Retrieve relevant chunks and generate an answer grounded in them."""
+    async def ask(
+        self,
+        question: str,
+        top_k: int | None = None,
+        *,
+        user_id: str,
+    ) -> RAGAnswer:
+        """Retrieve the caller's own chunks and answer strictly from them."""
         cleaned = question.strip()
         if not cleaned:
             msg = "Question must not be empty"
             raise ValueError(msg)
 
-        hits = await asyncio.to_thread(self._retriever.retrieve, cleaned, top_k)
+        hits = await asyncio.to_thread(
+            self._retriever.retrieve,
+            cleaned,
+            top_k,
+            user_id=user_id,
+        )
         if not hits:
             return RAGAnswer(answer=NO_CONTEXT_ANSWER, sources=[], model=self._model_name)
 
@@ -138,6 +153,7 @@ class RAGService:
                 chunk_index=hit.metadata.get("chunk_index"),
                 chunk_id=hit.metadata.get("chunk_id"),
                 score=hit.score,
+                page=hit.metadata.get("page"),
             )
             for hit in hits
         ]

@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 
 from src.api.dependencies import get_settings
 from src.core.config import Settings
+from src.rag.llm_client import LLMGenerationError
+from src.repositories.vector_repository import VectorIndexError
 from tests.conftest import TEST_PASSWORD
 
 UPLOAD_URL = "/api/v1/chat/upload"
@@ -44,6 +46,8 @@ def test_upload_indexes_document(
         "chunks": 2,
     }
     fake_rag_service.ingest.assert_awaited_once()
+    _, kwargs = fake_rag_service.ingest.call_args
+    assert kwargs["user_id"]
 
 
 def test_upload_requires_authentication(client: TestClient) -> None:
@@ -105,9 +109,13 @@ def test_ask_returns_answer_with_sources(
             "chunk_index": 0,
             "chunk_id": "doc-1:0",
             "score": 0.93,
+            "page": 1,
         }
     ]
-    fake_rag_service.ask.assert_awaited_once_with("Какой срок оплаты?", None)
+    fake_rag_service.ask.assert_awaited_once()
+    args, kwargs = fake_rag_service.ask.call_args
+    assert args == ("Какой срок оплаты?", None)
+    assert kwargs["user_id"]
 
 
 def test_ask_passes_top_k_to_service(
@@ -122,7 +130,9 @@ def test_ask_passes_top_k_to_service(
     )
 
     assert response.status_code == 200
-    fake_rag_service.ask.assert_awaited_once_with("Какой срок оплаты?", 2)
+    _, kwargs = fake_rag_service.ask.call_args
+    assert fake_rag_service.ask.call_args.args == ("Какой срок оплаты?", 2)
+    assert kwargs["user_id"]
 
 
 def test_ask_rejects_empty_question(
@@ -182,3 +192,29 @@ def test_history_rejects_invalid_limit(
     response = client.get(f"{HISTORY_URL}?limit=0", headers=auth_headers)
 
     assert response.status_code == 422
+
+
+def test_llm_failure_is_mapped_to_502(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    fake_rag_service: MagicMock,
+) -> None:
+    fake_rag_service.ask.side_effect = LLMGenerationError("provider timeout")
+
+    response = client.post(ASK_URL, headers=auth_headers, json={"question": "Вопрос"})
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "LLM provider request failed"}
+
+
+def test_broken_vector_store_is_mapped_to_503(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    fake_rag_service: MagicMock,
+) -> None:
+    fake_rag_service.ask.side_effect = VectorIndexError("corrupted index")
+
+    response = client.post(ASK_URL, headers=auth_headers, json={"question": "Вопрос"})
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Vector store is unavailable"}

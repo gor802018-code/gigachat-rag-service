@@ -28,6 +28,18 @@ from src.services.rag_service import RAGService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+READ_CHUNK_BYTES = 64 * 1024
+
+
+async def _read_limited(file: UploadFile, limit: int) -> bytes | None:
+    """Read an upload in chunks, returning ``None`` as soon as it exceeds the limit."""
+    buffer = bytearray()
+    while chunk := await file.read(READ_CHUNK_BYTES):
+        buffer.extend(chunk)
+        if len(buffer) > limit:
+            return None
+    return bytes(buffer)
+
 
 @router.post(
     "/upload",
@@ -50,23 +62,27 @@ async def upload_document(
             detail=f"Unsupported file type: {suffix or original_name}",
         )
 
-    payload = await file.read()
+    payload = await _read_limited(file, settings.upload_limit_bytes)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds {settings.max_upload_size_mb} MB limit",
+        )
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Uploaded file is empty",
-        )
-    if len(payload) > settings.upload_limit_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds {settings.max_upload_size_mb} MB limit",
         )
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         target = Path(tmp_dir) / f"upload{suffix}"
         target.write_bytes(payload)
         try:
-            result = await rag_service.ingest(target, document_id=uuid4().hex)
+            result = await rag_service.ingest(
+                target,
+                document_id=uuid4().hex,
+                user_id=user.id,
+            )
         except (DocumentLoadError, ValueError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -95,7 +111,7 @@ async def ask_question(
     rag_service: RAGService = Depends(get_rag_service),
     chats: SQLAlchemyChatRepository = Depends(get_chat_repository),
 ) -> AnswerResponse:
-    answer = await rag_service.ask(payload.question, payload.top_k)
+    answer = await rag_service.ask(payload.question, payload.top_k, user_id=user.id)
     await chats.add(
         user_id=user.id,
         question=payload.question,
@@ -106,6 +122,7 @@ async def ask_question(
                 "chunk_index": source.chunk_index,
                 "chunk_id": source.chunk_id,
                 "score": source.score,
+                "page": source.page,
             }
             for source in answer.sources
         ],

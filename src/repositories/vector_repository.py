@@ -68,6 +68,7 @@ class VectorRepository:
         documents: list[Document],
         *,
         document_id: str | None = None,
+        user_id: str | None = None,
     ) -> list[str]:
         """Embed, normalise and store chunks. Returns the generated chunk ids."""
         if not documents:
@@ -94,6 +95,7 @@ class VectorRepository:
                         "id": chunk_id,
                         "content": document.page_content,
                         "metadata": metadata,
+                        "user_id": user_id,
                     }
                 )
                 chunk_ids.append(chunk_id)
@@ -107,8 +109,15 @@ class VectorRepository:
         top_k: int = DEFAULT_TOP_K,
         *,
         min_score: float | None = None,
+        user_id: str | None = None,
     ) -> list[SearchHit]:
-        """Return the ``top_k`` most similar chunks for ``query``."""
+        """Return the ``top_k`` most similar chunks for ``query``.
+
+        When ``user_id`` is provided only chunks that belong to that user are
+        returned. ``IndexFlatIP`` scans every vector anyway, so the index is
+        queried for the full result set and filtered afterwards; a filtered
+        approximate index (pgvector/Qdrant) would push this down to the store.
+        """
         if top_k <= 0:
             msg = "top_k must be positive"
             raise ValueError(msg)
@@ -116,10 +125,13 @@ class VectorRepository:
             msg = "Query must not be empty"
             raise ValueError(msg)
 
+        # Embedding is CPU-heavy; keep it outside the lock so reads and writes
+        # do not block each other.
+        vector = self._prepare_vectors(np.atleast_2d(self._embedder.embed_query(query)))
+
         with self._lock:
             if self._index is None or not self._records:
                 return []
-            vector = self._prepare_vectors(np.atleast_2d(self._embedder.embed_query(query)))
             if vector.shape[1] != self._index.d:
                 msg = (
                     f"Query embedding has dimension {vector.shape[1]}, "
@@ -127,14 +139,18 @@ class VectorRepository:
                 )
                 raise ValueError(msg)
 
-            scores, indices = self._index.search(vector, min(top_k, len(self._records)))
+            fetch_k = len(self._records) if user_id is not None else min(top_k, len(self._records))
+            scores, indices = self._index.search(vector, fetch_k)
+
             hits: list[SearchHit] = []
             for score, index in zip(scores[0], indices[0], strict=True):
                 if index < 0:
                     continue
+                record = self._records[int(index)]
+                if user_id is not None and record.get("user_id") != user_id:
+                    continue
                 if min_score is not None and float(score) < min_score:
                     continue
-                record = self._records[int(index)]
                 hits.append(
                     SearchHit(
                         content=record["content"],
@@ -142,6 +158,8 @@ class VectorRepository:
                         score=float(score),
                     )
                 )
+                if len(hits) == top_k:
+                    break
             return hits
 
     def save(self) -> None:

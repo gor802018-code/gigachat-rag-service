@@ -67,6 +67,17 @@ def test_production_accepts_custom_jwt_secret(make_settings: Callable[..., Setti
     assert settings.jwt_secret_key.get_secret_value() != DEV_JWT_SECRET
 
 
+def test_retriever_score_floor_default_and_override(
+    make_settings: Callable[..., Settings],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert make_settings().retriever_min_score == 0.2
+
+    monkeypatch.setenv("RETRIEVER_MIN_SCORE", "0.45")
+
+    assert Settings(_env_file=None).retriever_min_score == 0.45
+
+
 def test_get_settings_is_cached() -> None:
     get_settings.cache_clear()
     try:

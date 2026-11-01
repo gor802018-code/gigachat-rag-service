@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from src.api.errors import register_exception_handlers
 from src.api.routers import auth, chat
 from src.api.schemas import HealthResponse
 from src.core.config import Settings, get_settings
@@ -22,6 +23,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=APP_VERSION,
         description="Retrieval-Augmented Generation service over your own documents.",
     )
+    register_exception_handlers(app)
 
     app.include_router(auth.router, prefix=settings.api_v1_prefix)
     app.include_router(chat.router, prefix=settings.api_v1_prefix)

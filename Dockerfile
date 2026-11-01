@@ -23,12 +23,18 @@ FROM python:3.11-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
+    HF_HOME=/app/.cache/huggingface \
     PATH="/app/.venv/bin:${PATH}"
 
 RUN groupadd --gid 1000 app \
     && useradd --uid 1000 --gid app --create-home --shell /bin/bash app
 
 WORKDIR /app
+
+# The named volumes are mounted as root; create the mount points and hand them
+# over to the runtime user, otherwise the first upload fails with PermissionError.
+RUN mkdir -p /app/data /app/.cache/huggingface \
+    && chown -R app:app /app/data /app/.cache
 
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app src ./src

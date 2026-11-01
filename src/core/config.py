@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     embedding_model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     faiss_index_path: Path = Path("data/faiss_index")
     retriever_top_k: int = Field(default=4, gt=0, le=20)
+    retriever_min_score: float | None = Field(default=0.2, ge=-1.0, le=1.0)
 
     chunk_size: int = Field(default=1000, gt=0)
     chunk_overlap: int = Field(default=200, ge=0)

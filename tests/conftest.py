@@ -42,6 +42,7 @@ RAG_RESULT = RAGAnswer(
             chunk_index=0,
             chunk_id="doc-1:0",
             score=0.93,
+            page=1,
         )
     ],
     model="GigaChat",
