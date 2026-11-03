@@ -49,10 +49,12 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     llm_timeout_seconds: int = Field(default=60, gt=0)
 
-    embedding_model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    embedding_model_name: str = "intfloat/multilingual-e5-base"
+    embedding_query_prefix: str = "query: "
+    embedding_passage_prefix: str = "passage: "
     faiss_index_path: Path = Path("data/faiss_index")
     retriever_top_k: int = Field(default=4, gt=0, le=20)
-    retriever_min_score: float | None = Field(default=0.2, ge=-1.0, le=1.0)
+    retriever_min_score: float | None = Field(default=0.8, ge=-1.0, le=1.0)
 
     chunk_size: int = Field(default=1000, gt=0)
     chunk_overlap: int = Field(default=200, ge=0)

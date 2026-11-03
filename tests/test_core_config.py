@@ -19,6 +19,10 @@ def test_defaults_are_development_friendly(make_settings: Callable[..., Settings
     assert settings.chunk_size == 1000
     assert settings.chunk_overlap == 200
     assert settings.retriever_top_k == 4
+    assert settings.retriever_min_score == 0.8
+    assert settings.embedding_model_name == "intfloat/multilingual-e5-base"
+    assert settings.embedding_query_prefix == "query: "
+    assert settings.embedding_passage_prefix == "passage: "
     assert settings.upload_limit_bytes == 20 * 1024 * 1024
 
 
@@ -71,7 +75,7 @@ def test_retriever_score_floor_default_and_override(
     make_settings: Callable[..., Settings],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert make_settings().retriever_min_score == 0.2
+    assert make_settings().retriever_min_score == 0.8
 
     monkeypatch.setenv("RETRIEVER_MIN_SCORE", "0.45")
 

@@ -36,6 +36,8 @@ class SentenceTransformerEmbedder:
         device: str | None = None,
         batch_size: int = 32,
         normalize: bool = True,
+        query_prefix: str = "",
+        passage_prefix: str = "",
     ) -> None:
         if not model_name.strip():
             msg = "model_name must not be empty"
@@ -48,13 +50,19 @@ class SentenceTransformerEmbedder:
         self.device = device
         self.batch_size = batch_size
         self.normalize = normalize
+        self.query_prefix = query_prefix
+        self.passage_prefix = passage_prefix
         self._model: Any = None
         self._lock = Lock()
 
     @classmethod
     def from_settings(cls, settings: Settings | None = None) -> "SentenceTransformerEmbedder":
         settings = settings or get_settings()
-        return cls(model_name=settings.embedding_model_name)
+        return cls(
+            model_name=settings.embedding_model_name,
+            query_prefix=settings.embedding_query_prefix,
+            passage_prefix=settings.embedding_passage_prefix,
+        )
 
     @property
     def is_loaded(self) -> bool:
@@ -67,7 +75,15 @@ class SentenceTransformerEmbedder:
     def embed_documents(self, texts: Sequence[str]) -> np.ndarray:
         if not texts:
             return np.empty((0, 0), dtype=np.float32)
+        return self._encode([f"{self.passage_prefix}{text}" for text in texts])
 
+    def embed_query(self, text: str) -> np.ndarray:
+        if not text.strip():
+            msg = "Query text must not be empty"
+            raise ValueError(msg)
+        return self._encode([f"{self.query_prefix}{text}"])[0]
+
+    def _encode(self, texts: Sequence[str]) -> np.ndarray:
         model = self._ensure_model()
         vectors = model.encode(
             list(texts),
@@ -77,12 +93,6 @@ class SentenceTransformerEmbedder:
             show_progress_bar=False,
         )
         return np.asarray(vectors, dtype=np.float32)
-
-    def embed_query(self, text: str) -> np.ndarray:
-        if not text.strip():
-            msg = "Query text must not be empty"
-            raise ValueError(msg)
-        return self.embed_documents([text])[0]
 
     def _ensure_model(self) -> Any:
         if self._model is None:

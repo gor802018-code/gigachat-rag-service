@@ -144,8 +144,8 @@ poetry run uvicorn src.main:app --reload
 poetry run streamlit run app.py
 ```
 
-При первом запросе скачивается модель эмбеддингов (~470 МБ) — это разовая операция
-(в Docker модель кэшируется в volume `hf_cache`).
+При первом запросе скачивается модель эмбеддингов `intfloat/multilingual-e5-base` (~1.1 ГБ) —
+это разовая операция (в Docker модель кэшируется в volume `hf_cache`).
 
 ## Docker Compose
 
@@ -297,10 +297,11 @@ curl "http://localhost:8000/api/v1/chat/history?limit=10" \
 | `GIGACHAT_SCOPE` | `GIGACHAT_API_PERS` | scope приложения |
 | `GIGACHAT_MODEL` | `GigaChat` | модель GigaChat |
 | `LLM_TEMPERATURE` | `0.1` | температура генерации |
-| `EMBEDDING_MODEL_NAME` | `paraphrase-multilingual-MiniLM-L12-v2` | модель эмбеддингов |
+| `EMBEDDING_MODEL_NAME` | `intfloat/multilingual-e5-base` | модель эмбеддингов (512 токенов, 768 dim) |
+| `EMBEDDING_QUERY_PREFIX` / `EMBEDDING_PASSAGE_PREFIX` | `query: ` / `passage: ` | префиксы e5: обязательны для e5-моделей |
 | `FAISS_INDEX_PATH` | `./data/faiss_index` | каталог индекса и `records.json` |
 | `RETRIEVER_TOP_K` | `4` | сколько чанков подавать в контекст |
-| `RETRIEVER_MIN_SCORE` | `0.2` | косинусный порог: чанки ниже отбрасываются (`0` отключает) |
+| `RETRIEVER_MIN_SCORE` | `0.8` | косинусный порог e5: чанки ниже отбрасываются (`0` отключает) |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1000` / `200` | параметры чанкинга |
 | `MAX_UPLOAD_SIZE_MB` | `20` | лимит размера файла |
 
@@ -341,7 +342,8 @@ compose и CI.
 ## Как это работает
 
 **Ingestion**: файл → `DocumentLoader` (LangChain) → `DocumentSplitter` (1000/200, русская пунктуация)
-→ `SentenceTransformerEmbedder` → нормализованные векторы в `IndexFlatIP` (+ JSON с текстами чанков).
+→ `SentenceTransformerEmbedder` (e5: префикс `passage:` и 512 токенов — чанк влезает целиком)
+→ нормализованные векторы в `IndexFlatIP` (+ JSON с текстами чанков).
 Всё блокирующее выполняется в `asyncio.to_thread`, event loop не встаёт.
 
 **Ответ**: вопрос → эмбеддинг → cosine top-k в FAISS с фильтрацией по `user_id` и порогом
@@ -372,6 +374,9 @@ compose и CI.
   векторы, поэтому на больших каталогах нужен индекс с фильтрами (pgvector, Qdrant).
 - Нет OCR: сканы PDF без текстового слоя не индексируются.
 - Ответы не стримятся (нет SSE/WebSocket).
+- `RETRIEVER_MIN_SCORE=0.8` откалиброван на синтетических парах e5-base (релевантные 0.83–0.91,
+  нерелевантные 0.70–0.78) — на реальных документах порог нужно перепроверить.
+- После смены `EMBEDDING_MODEL_NAME` индекс пересобирается: размерность и семантика векторов меняются.
 
 ## Лицензия
 
