@@ -8,7 +8,7 @@ import streamlit as st
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
 API_PREFIX = "/api/v1"
-REQUEST_TIMEOUT = 180.0
+REQUEST_TIMEOUT = 600.0
 ALLOWED_EXTENSIONS = ["pdf", "txt", "md", "docx"]
 
 st.set_page_config(page_title="RAG Chat", page_icon="📚", layout="centered")
@@ -120,12 +120,13 @@ def ask_question(question: str) -> None:
     st.session_state["messages"].append({"role": "user", "content": question})
 
     try:
-        response = _request(
-            "POST",
-            "/chat/ask",
-            headers=_headers(),
-            json={"question": question},
-        )
+        with st.spinner("Думаю над ответом…"):
+            response = _request(
+                "POST",
+                "/chat/ask",
+                headers=_headers(),
+                json={"question": question},
+            )
     except httpx.RequestError as exc:
         st.session_state["messages"].append(
             {"role": "assistant", "content": f"API недоступен: {exc}", "sources": []}
@@ -250,8 +251,17 @@ def _render_chat() -> None:
                     f"score {source.get('score', 0):.2f}"
                 )
 
-    if question := st.chat_input("Спросите что-нибудь по документам"):
-        ask_question(question)
+    with st.form("ask_form", clear_on_submit=True):
+        question = st.text_area(
+            "Вопрос",
+            height=160,
+            placeholder="Спросите что-нибудь по документам…",
+            label_visibility="collapsed",
+        )
+        submitted = st.form_submit_button("Отправить", use_container_width=True)
+
+    if submitted and question.strip():
+        ask_question(question.strip())
         st.rerun()
 
 
