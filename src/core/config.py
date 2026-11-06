@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None
     gigachat_credentials: SecretStr | None = None
     gigachat_scope: str = "GIGACHAT_API_PERS"
-    gigachat_model: str = "GigaChat"
+    gigachat_model: str = "GigaChat-2"
     gigachat_verify_ssl_certs: bool = False
     llm_temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     llm_timeout_seconds: int = Field(default=60, gt=0)

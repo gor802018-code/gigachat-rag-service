@@ -1,5 +1,6 @@
 """Tests for the provider-agnostic LLM client."""
 
+import base64
 import sys
 import types
 from collections.abc import Callable, Sequence
@@ -20,6 +21,7 @@ from src.rag.llm_client import (
     LLMResponse,
     create_lazy_llm_client,
     create_llm_client,
+    normalize_gigachat_credentials,
 )
 
 USAGE = {"input_tokens": 12, "output_tokens": 8, "total_tokens": 20}
@@ -116,14 +118,43 @@ def test_gigachat_client_is_built_from_settings(
         client = GigaChatClient.from_settings(settings)
 
     giga_chat.assert_called_once_with(
-        credentials="client-id:client-secret",
+        credentials=base64.b64encode(b"client-id:client-secret").decode(),
         scope="GIGACHAT_API_CORP",
-        model="GigaChat",
+        model="GigaChat-2",
         temperature=0.3,
         timeout=15,
         verify_ssl_certs=False,
     )
-    assert client.model_name == "GigaChat"
+    assert client.model_name == "GigaChat-2"
+
+
+def test_raw_credentials_are_base64_encoded() -> None:
+    encoded = normalize_gigachat_credentials("client-id:client-secret")
+
+    assert base64.b64decode(encoded).decode() == "client-id:client-secret"
+
+
+def test_base64_credentials_are_kept_as_is() -> None:
+    encoded = base64.b64encode(b"client-id:client-secret").decode()
+
+    assert normalize_gigachat_credentials(encoded) == encoded
+
+
+def test_basic_prefix_is_stripped() -> None:
+    encoded = base64.b64encode(b"client-id:client-secret").decode()
+
+    assert normalize_gigachat_credentials(f"Basic {encoded}") == encoded
+
+
+def test_ready_authorization_key_is_used_as_is() -> None:
+    key = base64.b64encode(b"client-id:client-secret").decode()
+
+    assert normalize_gigachat_credentials(f"client-id:{key}") == key
+
+
+def test_invalid_credentials_are_rejected() -> None:
+    with pytest.raises(LLMConfigurationError, match="client_id"):
+        normalize_gigachat_credentials("abc")
 
 
 def test_factory_builds_gigachat_by_default(make_settings: Callable[..., Settings]) -> None:

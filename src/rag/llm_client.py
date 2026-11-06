@@ -1,5 +1,7 @@
 """LLM clients behind a provider-agnostic interface."""
 
+import base64
+import binascii
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from threading import Lock
@@ -68,6 +70,44 @@ class LangChainChatClient:
         return LLMResponse(content=content, model=self._model_name, usage=usage)
 
 
+def _is_ready_authorization_key(value: str, client_id: str) -> bool:
+    """True when ``value`` is already ``base64(client_id:secret)``."""
+    try:
+        decoded = base64.b64decode(value, validate=True).decode("utf-8")
+    except (ValueError, binascii.Error, UnicodeDecodeError):
+        return False
+    return decoded.startswith(f"{client_id}:")
+
+
+def normalize_gigachat_credentials(raw: str) -> str:
+    """Accept ``client_id:client_secret``, ``client_id:<Authorization key>`` or Base64.
+
+    GigaChat Studio shows an "Authorization key" that is already
+    ``base64(client_id:client_secret)``; users often copy it next to the
+    client id. GigaChat SDK puts the value into ``Authorization: Basic <value>``
+    verbatim, so a raw pair has to be encoded and a ready key left untouched.
+    """
+    value = raw.strip()
+    if value.lower().startswith("basic "):
+        value = value[6:].strip()
+
+    if ":" not in value:
+        try:
+            base64.b64decode(value, validate=True)
+        except (ValueError, binascii.Error) as exc:
+            msg = (
+                "GIGACHAT_CREDENTIALS must be 'client_id:client_secret', "
+                "its Base64 form or the Authorization key"
+            )
+            raise LLMConfigurationError(msg) from exc
+        return value
+
+    client_id, rest = value.split(":", 1)
+    if _is_ready_authorization_key(rest, client_id):
+        return rest
+    return base64.b64encode(value.encode("utf-8")).decode("ascii")
+
+
 class GigaChatClient(LangChainChatClient):
     """GigaChat wrapper configured from application settings."""
 
@@ -78,12 +118,12 @@ class GigaChatClient(LangChainChatClient):
         if credentials is None or not credentials.get_secret_value().strip():
             msg = (
                 "GIGACHAT_CREDENTIALS is not set. "
-                "Pass the Base64 'client_id:client_secret' pair from GigaChat Studio."
+                "Pass 'client_id:client_secret' or its Base64 form from GigaChat Studio."
             )
             raise LLMConfigurationError(msg)
 
         chat_model = GigaChat(
-            credentials=credentials.get_secret_value(),
+            credentials=normalize_gigachat_credentials(credentials.get_secret_value()),
             scope=settings.gigachat_scope,
             model=settings.active_llm_model,
             temperature=settings.llm_temperature,

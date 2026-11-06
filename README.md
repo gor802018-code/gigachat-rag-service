@@ -117,6 +117,10 @@ GIGACHAT_CREDENTIALS=<base64-строка>
 GIGACHAT_SCOPE=GIGACHAT_API_PERS
 ```
 
+Сервис принимает любую из трёх форм и нормализует её сам: `client_id:client_secret`,
+их Base64 или готовый **Authorization key** из кабинета (он уже является `base64(client_id:secret)`,
+в том числе если скопировать его строкой `client_id:<authorization key>`).
+
 `GIGACHAT_SCOPE` должен соответствовать типу аккаунта: `GIGACHAT_API_PERS` для физлиц,
 `GIGACHAT_API_B2B` / `GIGACHAT_API_CORP` для юридических лиц.
 
@@ -298,7 +302,7 @@ curl "http://localhost:8000/api/v1/chat/history?limit=10" \
 | `LLM_BASE_URL` | `https://api.deepseek.com/v1` для deepseek | кастомный endpoint |
 | `GIGACHAT_CREDENTIALS` | — | Base64 `client_id:client_secret` |
 | `GIGACHAT_SCOPE` | `GIGACHAT_API_PERS` | scope приложения |
-| `GIGACHAT_MODEL` | `GigaChat` | модель GigaChat |
+| `GIGACHAT_MODEL` | `GigaChat-2` | модель GigaChat (доступные id — `GET /v1/models`) |
 | `LLM_TEMPERATURE` | `0.1` | температура генерации |
 | `EMBEDDING_MODEL_NAME` | `intfloat/multilingual-e5-base` | модель эмбеддингов (512 токенов, 768 dim) |
 | `EMBEDDING_QUERY_PREFIX` / `EMBEDDING_PASSAGE_PREFIX` | `query: ` / `passage: ` | префиксы e5: обязательны для e5-моделей |

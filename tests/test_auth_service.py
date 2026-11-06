@@ -79,7 +79,12 @@ async def test_weak_password_is_rejected(service: AuthService, password: str) ->
         await service.register("user@example.com", password)
 
 
-async def test_login_issues_token_for_registered_user(service: AuthService) -> None:
+async def test_login_issues_token_for_registered_user(
+    repository: InMemoryUserRepository,
+    make_settings: Callable[..., Settings],
+) -> None:
+    settings = make_settings()
+    service = AuthService(repository, settings)
     user = await service.register("user@example.com", PASSWORD)
 
     result = await service.login("user@example.com", PASSWORD)
@@ -87,7 +92,7 @@ async def test_login_issues_token_for_registered_user(service: AuthService) -> N
     assert result.user_id == user.id
     assert result.token_type == "bearer"
     assert result.expires_in == 3600
-    payload = decode_access_token(result.access_token)
+    payload = decode_access_token(result.access_token, settings=settings)
     assert payload["sub"] == user.id
     assert payload["email"] == "user@example.com"
 
