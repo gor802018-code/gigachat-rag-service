@@ -26,6 +26,7 @@ dependencies = [
     "langchain-text-splitters>=0.3",
     "langchain-gigachat>=0.3",
     "sentence-transformers>=3.0",
+    "torch>=2.0",
     "faiss-cpu>=1.8",
     "pypdf>=5.0",
     "docx2txt>=0.8",
@@ -34,6 +35,15 @@ dependencies = [
 
 [tool.poetry]
 package-mode = false
+
+# CPU-only torch: the CUDA build drags ~4 GB of nvidia wheels into the image.
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[tool.poetry.dependencies]
+torch = { version = "2.15.0", source = "pytorch-cpu" }
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.3"
