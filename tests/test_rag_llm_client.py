@@ -13,10 +13,12 @@ from src.core.config import Settings
 from src.rag.llm_client import (
     GigaChatClient,
     LangChainChatClient,
+    LazyLLMClient,
     LLMClient,
     LLMConfigurationError,
     LLMGenerationError,
     LLMResponse,
+    create_lazy_llm_client,
     create_llm_client,
 )
 
@@ -165,3 +167,33 @@ def test_factory_requires_api_key_for_openai_providers(
 
 def test_llm_client_protocol_is_implemented() -> None:
     assert isinstance(GigaChatClient(MagicMock(), model_name="GigaChat"), LLMClient)
+
+
+def test_lazy_client_is_not_built_before_generation() -> None:
+    factory = MagicMock(side_effect=AssertionError("provider must not be built"))
+
+    client = LazyLLMClient(factory, model_name="GigaChat")
+
+    assert client.model_name == "GigaChat"
+    factory.assert_not_called()
+
+
+async def test_lazy_client_surfaces_missing_credentials_on_generation(
+    make_settings: Callable[..., Settings],
+) -> None:
+    client = create_lazy_llm_client(make_settings())
+
+    with pytest.raises(LLMConfigurationError, match="GIGACHAT_CREDENTIALS"):
+        await client.agenerate([HumanMessage(content="Вопрос")])
+
+
+async def test_lazy_client_builds_provider_only_once() -> None:
+    provider = LangChainChatClient(FakeChatModel(), model_name="GigaChat")
+    factory = MagicMock(return_value=provider)
+    client = LazyLLMClient(factory, model_name="GigaChat")
+
+    await client.agenerate([HumanMessage(content="Первый")])
+    await client.agenerate([HumanMessage(content="Второй")])
+
+    factory.assert_called_once()
+    assert isinstance(client, LLMClient)

@@ -12,7 +12,7 @@ from src.core.config import Settings, get_settings
 from src.core.database import create_engine, create_session_factory
 from src.core.security import InvalidTokenError, decode_access_token
 from src.rag.embeddings import SentenceTransformerEmbedder
-from src.rag.llm_client import LLMClient, create_llm_client
+from src.rag.llm_client import LLMClient, create_lazy_llm_client
 from src.repositories.chat_repository import SQLAlchemyChatRepository
 from src.repositories.document_repository import SQLAlchemyDocumentRepository
 from src.repositories.sqlalchemy_user_repository import SQLAlchemyUserRepository
@@ -83,7 +83,8 @@ def get_vector_repository() -> VectorRepository:
 
 @lru_cache(maxsize=1)
 def get_llm_client() -> LLMClient:
-    return create_llm_client(get_settings())
+    """Lazy client: credentials are validated on the first generation call."""
+    return create_lazy_llm_client(get_settings())
 
 
 def get_rag_service(

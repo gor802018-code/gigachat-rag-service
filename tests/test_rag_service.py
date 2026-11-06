@@ -120,6 +120,25 @@ async def test_ingest_rejects_document_without_chunks(
         await service.ingest(Path("empty.txt"), user_id=USER_ID)
 
 
+async def test_ingest_keeps_original_file_name_in_metadata(
+    service: RAGService,
+    dependencies: dict[str, MagicMock],
+) -> None:
+    dependencies["splitter"].split.return_value = [
+        Document(page_content="Текст", metadata={"chunk_index": 0, "file_name": "upload.txt"})
+    ]
+
+    result = await service.ingest(
+        Path("/tmp/upload.txt"),
+        user_id=USER_ID,
+        file_name="contract.pdf",
+    )
+
+    chunks = dependencies["vector_repository"].add_documents.call_args.args[0]
+    assert chunks[0].metadata["file_name"] == "contract.pdf"
+    assert result.file_name == "contract.pdf"
+
+
 async def test_ask_returns_answer_with_sources(
     service: RAGService,
     dependencies: dict[str, MagicMock],

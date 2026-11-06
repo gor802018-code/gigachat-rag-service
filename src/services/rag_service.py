@@ -91,14 +91,24 @@ class RAGService:
         document_id: str | None = None,
         *,
         user_id: str,
+        file_name: str | None = None,
     ) -> IngestResult:
-        """Load, split and index a document owned by ``user_id``."""
+        """Load, split and index a document owned by ``user_id``.
+
+        ``file_name`` is the display name shown in citations; the temporary
+        upload path is meaningless for the end user.
+        """
         path = Path(file_path)
         documents = await asyncio.to_thread(self._loader.load, path)
         chunks = await asyncio.to_thread(self._splitter.split, documents)
         if not chunks:
             msg = f"Document produced no chunks: {path.name}"
             raise ValueError(msg)
+
+        resolved_name = file_name or path.name
+        if file_name:
+            for chunk in chunks:
+                chunk.metadata["file_name"] = resolved_name
 
         resolved_id = document_id or uuid4().hex
         await asyncio.to_thread(
@@ -107,7 +117,11 @@ class RAGService:
             document_id=resolved_id,
             user_id=user_id,
         )
-        return IngestResult(document_id=resolved_id, file_name=path.name, chunks=len(chunks))
+        return IngestResult(
+            document_id=resolved_id,
+            file_name=resolved_name,
+            chunks=len(chunks),
+        )
 
     async def ask(
         self,

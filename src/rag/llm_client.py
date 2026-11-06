@@ -1,7 +1,8 @@
 """LLM clients behind a provider-agnostic interface."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from threading import Lock
 from typing import Any, Protocol, runtime_checkable
 
 from langchain_core.messages import BaseMessage
@@ -92,6 +93,34 @@ class GigaChatClient(LangChainChatClient):
         return cls(chat_model, model_name=settings.active_llm_model)
 
 
+class LazyLLMClient:
+    """Defers provider construction until the first generation call.
+
+    Ingestion does not need an LLM, so a missing credential must not make
+    ``/chat/upload`` fail; the error has to surface on ``/chat/ask``.
+    """
+
+    def __init__(self, factory: Callable[[], LLMClient], model_name: str) -> None:
+        self._factory = factory
+        self._model_name = model_name
+        self._client: LLMClient | None = None
+        self._lock = Lock()
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    def _resolve(self) -> LLMClient:
+        if self._client is None:
+            with self._lock:
+                if self._client is None:
+                    self._client = self._factory()
+        return self._client
+
+    async def agenerate(self, messages: Sequence[BaseMessage]) -> LLMResponse:
+        return await self._resolve().agenerate(messages)
+
+
 def create_llm_client(settings: Settings | None = None) -> LLMClient:
     """Build the client for ``LLM_PROVIDER`` from configuration."""
     settings = settings or get_settings()
@@ -104,6 +133,15 @@ def create_llm_client(settings: Settings | None = None) -> LLMClient:
 
     msg = f"Unsupported LLM provider: {settings.llm_provider}"
     raise LLMConfigurationError(msg)
+
+
+def create_lazy_llm_client(settings: Settings | None = None) -> LLMClient:
+    """Return a client that validates the provider only when it is actually used."""
+    settings = settings or get_settings()
+    return LazyLLMClient(
+        lambda: create_llm_client(settings),
+        model_name=settings.active_llm_model,
+    )
 
 
 def _create_openai_compatible_client(settings: Settings) -> LangChainChatClient:

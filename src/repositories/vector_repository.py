@@ -11,7 +11,10 @@ import faiss
 import numpy as np
 from langchain_core.documents import Document
 
+from src.core.logging import get_logger
 from src.rag.embeddings import Embedder
+
+logger = get_logger(__name__)
 
 INDEX_FILE_NAME = "index.faiss"
 RECORDS_FILE_NAME = "records.json"
@@ -160,6 +163,15 @@ class VectorRepository:
                 )
                 if len(hits) == top_k:
                     break
+
+            logger.debug(
+                "vector_search",
+                user_id=user_id,
+                records=len(self._records),
+                ntotal=int(self._index.ntotal),
+                fetch_k=fetch_k,
+                hits=len(hits),
+            )
             return hits
 
     def save(self) -> None:

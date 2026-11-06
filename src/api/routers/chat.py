@@ -82,6 +82,7 @@ async def upload_document(
                 target,
                 document_id=uuid4().hex,
                 user_id=user.id,
+                file_name=original_name,
             )
         except (DocumentLoadError, ValueError) as exc:
             raise HTTPException(
