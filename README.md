@@ -1,5 +1,9 @@
 # RAG Service
 
+[![CI](https://github.com/<USERNAME>/project_llm_rag/actions/workflows/ci.yml/badge.svg)](https://github.com/<USERNAME>/project_llm_rag/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Production-ready сервис Retrieval-Augmented Generation: загружаете свои документы — задаёте вопросы
 и получаете ответы **только по этим документам**, со ссылками на конкретные фрагменты.
 
@@ -88,7 +92,7 @@ flowchart LR
 ### 2. Установка
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/<USERNAME>/project_llm_rag.git
 cd project_llm_rag
 poetry install
 cp .env.example .env
