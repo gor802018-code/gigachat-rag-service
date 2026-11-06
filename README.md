@@ -163,7 +163,7 @@ docker compose up --build
 FAISS-индекс лежит в volume `faiss_data` (`/app/data/faiss_index`), база — в `postgres_data`,
 кэш модели эмбеддингов — в `hf_cache`.
 
-Образ API собирается с CPU-сборкой torch (`pytorch-cpu` в `pyproject.toml`): ~2 ГБ вместо ~9.5 ГБ
+Образ API собирается с CPU-сборкой torch (`pytorch-cpu` в `pyproject.toml`): ~3 ГБ вместо ~9.5 ГБ
 с CUDA-колёсами, инференс всё равно идёт на CPU.
 
 ## API
