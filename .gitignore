@@ -34,3 +34,9 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local docker build logs
+build-*.out
+build-*.err
+build-api.log
+calibrate_e5.out
