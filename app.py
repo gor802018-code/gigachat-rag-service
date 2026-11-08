@@ -11,7 +11,7 @@ API_PREFIX = "/api/v1"
 REQUEST_TIMEOUT = 600.0
 ALLOWED_EXTENSIONS = ["pdf", "txt", "md", "docx"]
 
-st.set_page_config(page_title="RAG Chat", page_icon="📚", layout="centered")
+st.set_page_config(page_title="RAG Chat", layout="centered")
 
 
 def _api_url(path: str) -> str:
@@ -182,7 +182,7 @@ def logout() -> None:
 
 
 def _render_auth() -> None:
-    st.title("📚 RAG Chat")
+    st.title("RAG Chat")
     st.caption("Вопросы по вашим документам: FAISS + GigaChat")
 
     login_tab, register_tab = st.tabs(["Вход", "Регистрация"])
@@ -234,7 +234,7 @@ def _render_sidebar() -> None:
 
 
 def _render_chat() -> None:
-    st.title("📚 RAG Chat")
+    st.title("RAG Chat")
 
     if not st.session_state["messages"]:
         st.info("Загрузите документ в панели слева и задайте вопрос.")
