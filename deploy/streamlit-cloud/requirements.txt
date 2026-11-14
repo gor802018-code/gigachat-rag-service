@@ -1,0 +1,15 @@
+streamlit>=1.39
+langchain-core>=0.3
+langchain-community>=0.3
+langchain-text-splitters>=0.3
+langchain-gigachat>=0.3
+langchain-openai>=0.2
+sentence-transformers>=3.0
+torch>=2.0
+faiss-cpu>=1.8
+pypdf>=5.0
+docx2txt>=0.8
+pydantic>=2.9
+pydantic-settings>=2.6
+structlog>=24.4
+numpy>=1.26
