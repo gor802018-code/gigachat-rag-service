@@ -11,6 +11,7 @@ import asyncio
 import os
 import sys
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
 
 import streamlit as st
@@ -32,13 +33,28 @@ _SECRET_KEYS = (
     "GIGACHAT_VERIFY_SSL_CERTS",
 )
 try:
-    _secrets = dict(st.secrets)
+    _raw_secrets = dict(st.secrets)
 except Exception:  # локально файла secrets.toml может не быть
-    _secrets = {}
+    _raw_secrets = {}
+
+# Секреты можно писать и плоско, и секциями ([gigachat] CREDENTIALS = ...),
+# регистр ключа не важен — собираем плоский словарь.
+_secrets: dict[str, object] = {}
+for _name, _value in _raw_secrets.items():
+    if isinstance(_value, Mapping):
+        _secrets.update({str(k).upper(): v for k, v in _value.items()})
+    else:
+        _secrets[str(_name).upper()] = _value
 
 for _key in _SECRET_KEYS:
-    if _key in _secrets and not os.getenv(_key):
-        os.environ[_key] = str(_secrets[_key])
+    _value = _secrets.get(_key)
+    if _value is None:
+        continue
+    _text = str(_value).strip().strip("\"'").strip()
+    if _text and not os.getenv(_key):
+        os.environ[_key] = _text
+
+GIGACHAT_READY = bool(os.environ.get("GIGACHAT_CREDENTIALS", "").strip())
 
 os.environ.setdefault("EMBEDDING_MODEL_NAME", "intfloat/multilingual-e5-small")
 os.environ.setdefault("RETRIEVER_MIN_SCORE", "0.78")
@@ -51,6 +67,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.core.config import get_settings  # noqa: E402
 from src.ingestion.loader import DocumentLoadError, DocumentLoader  # noqa: E402
 from src.ingestion.splitter import DocumentSplitter  # noqa: E402
 from src.rag.embeddings import SentenceTransformerEmbedder  # noqa: E402
@@ -65,16 +82,21 @@ st.caption("Загрузите документы — и задавайте во
 
 
 @st.cache_resource(show_spinner="Загружаю модель эмбеддингов (первый раз ~1 минута)…")
-def get_pipeline() -> tuple[Retriever, PromptBuilder, object, SentenceTransformerEmbedder]:
+def get_pipeline() -> tuple[Retriever, PromptBuilder, SentenceTransformerEmbedder]:
     embedder = SentenceTransformerEmbedder.from_settings()
     index_dir = Path(tempfile.mkdtemp(prefix="faiss-"))
     repository = VectorRepository(embedder, index_dir)
     retriever = Retriever.from_settings(repository)
-    return retriever, PromptBuilder(), create_lazy_llm_client(), embedder
+    return retriever, PromptBuilder(), embedder
 
 
-retriever, prompt_builder, llm_client, _embedder = get_pipeline()
+retriever, prompt_builder, _embedder = get_pipeline()
 repository = retriever._repository  # noqa: SLF001 — доступ к счётчику чанков
+
+# Настройки кэшируются (lru_cache) при первом обращении, поэтому ключ,
+# добавленный в Secrets после старта приложения, иначе не подхватится.
+get_settings.cache_clear()
+llm_client = create_lazy_llm_client()
 
 if "chunks" not in st.session_state:
     st.session_state.chunks = 0
@@ -128,6 +150,10 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
+    if GIGACHAT_READY:
+        st.caption("Ключ GigaChat: задан")
+    else:
+        st.error("Ключ GigaChat не найден: добавьте GIGACHAT_CREDENTIALS в Secrets приложения.")
     st.caption(
         "Демо: данные живут в памяти и пропадают при перезапуске. "
         "Загружайте только тестовые документы."
