@@ -43,6 +43,9 @@ for _key in _SECRET_KEYS:
 os.environ.setdefault("EMBEDDING_MODEL_NAME", "intfloat/multilingual-e5-small")
 os.environ.setdefault("RETRIEVER_MIN_SCORE", "0.78")
 os.environ.setdefault("APP_ENV", "production")
+# JWT в этом демо не используется (входа нет), но валидатор настроек требует
+# недефолтное значение в production — задаём демо-значение, если секрет не добавлен.
+os.environ.setdefault("JWT_SECRET_KEY", "streamlit-demo-jwt-unused-local-only")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
