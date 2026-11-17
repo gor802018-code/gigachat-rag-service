@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1.7
+# Однофайловый Docker Space: клонирует публичный репозиторий и поднимает
+# API + Streamlit в одном контейнере. Нужен только этот файл.
+#
+# Секреты задаются в Settings → Variables and secrets Space:
+#   GIGACHAT_CREDENTIALS, GIGACHAT_SCOPE, GIGACHAT_MODEL, JWT_SECRET_KEY, LLM_PROVIDER
+
+FROM python:3.11-slim
+
+ARG REPO_URL=https://github.com/gor802018-code/gigachat-rag-service.git
+ARG REPO_REF=main
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    POETRY_VERSION=2.5.1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_NO_INTERACTION=1 \
+    PYTHONPATH=/app \
+    PATH="/app/.venv/bin:${PATH}" \
+    APP_ENV=production \
+    DATA_DIR=/data
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install "poetry==${POETRY_VERSION}"
+
+RUN git clone --depth 1 --branch "${REPO_REF}" "${REPO_URL}" /app
+
+WORKDIR /app
+
+RUN poetry install --only main --no-ansi \
+    && pip install "aiosqlite>=0.22" "streamlit>=1.39"
+
+RUN mkdir -p /data/faiss_index /data/hf
+
+EXPOSE 7860
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=5 \
+    CMD curl -fsS http://127.0.0.1:7860/_stcore/health || exit 1
+
+CMD ["bash", "-lc", "\
+set -e; \
+export DATABASE_URL=\"${DATABASE_URL:-sqlite+aiosqlite:////data/app.db}\"; \
+export FAISS_INDEX_PATH=/data/faiss_index; \
+export HF_HOME=/data/hf; \
+cd /app; \
+alembic upgrade head || echo 'alembic пропущен'; \
+uvicorn src.main:app --host 127.0.0.1 --port 8000 & \
+for i in $(seq 1 90); do curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1 && break; sleep 2; done; \
+export API_BASE_URL=http://127.0.0.1:8000; \
+exec streamlit run app.py --server.address 0.0.0.0 --server.port 7860 --server.headless true --browser.gatherUsageStats false"]

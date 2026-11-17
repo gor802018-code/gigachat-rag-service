@@ -68,7 +68,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.core.config import get_settings  # noqa: E402
-from src.ingestion.loader import DocumentLoadError, DocumentLoader  # noqa: E402
+from src.ingestion.loader import DocumentLoader, DocumentLoadError  # noqa: E402
 from src.ingestion.splitter import DocumentSplitter  # noqa: E402
 from src.rag.embeddings import SentenceTransformerEmbedder  # noqa: E402
 from src.rag.llm_client import LLMConfigurationError, LLMGenerationError, create_lazy_llm_client  # noqa: E402
@@ -91,7 +91,7 @@ def get_pipeline() -> tuple[Retriever, PromptBuilder, SentenceTransformerEmbedde
 
 
 retriever, prompt_builder, _embedder = get_pipeline()
-repository = retriever._repository  # noqa: SLF001 — доступ к счётчику чанков
+repository = retriever._repository
 
 # Настройки кэшируются (lru_cache) при первом обращении, поэтому ключ,
 # добавленный в Secrets после старта приложения, иначе не подхватится.
@@ -195,7 +195,8 @@ if question:
 
                 sources = []
                 for number, hit in enumerate(hits, start=1):
-                    source = hit.metadata.get("source") or hit.metadata.get("file_name") or "документ"
+                    metadata = hit.metadata
+                    source = metadata.get("source") or metadata.get("file_name") or "документ"
                     st.caption(f"[{number}] {source} · сходство {hit.score:.2f}")
                     sources.append({"n": number, "source": source, "score": hit.score})
 
